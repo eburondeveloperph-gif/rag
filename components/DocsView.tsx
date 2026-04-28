@@ -23,6 +23,45 @@ const DocsView: React.FC<DocsViewProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
 
+  // Filters state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [ocrStatusFilter, setOcrStatusFilter] = useState('');
+  const [protectedFilter, setProtectedFilter] = useState('');
+  const [fileTypeFilter, setFileTypeFilter] = useState('');
+  const [dateRangeFilter, setDateRangeFilter] = useState('');
+
+  // Process filtering
+  const filteredDocuments = documents.filter(doc => {
+    // Search Term
+    if (searchTerm && !doc.title.toLowerCase().includes(searchTerm.toLowerCase()) && 
+        !(doc.metadata?.sender?.toLowerCase() || '').includes(searchTerm.toLowerCase()) && 
+        !(doc.metadata?.recipient?.toLowerCase() || '').includes(searchTerm.toLowerCase())) {
+      return false;
+    }
+    // OCR Status
+    if (ocrStatusFilter && doc.ocrStatus !== ocrStatusFilter) return false;
+    // Protected Status
+    if (protectedFilter) {
+      const isProtected = protectedFilter === 'true';
+      if (!!doc.protected !== isProtected) return false;
+    }
+    // File Type (mime type simplified)
+    if (fileTypeFilter) {
+      if (fileTypeFilter === 'pdf' && !doc.mimeType.includes('pdf')) return false;
+      if (fileTypeFilter === 'image' && !doc.mimeType.includes('image')) return false;
+      if (fileTypeFilter === 'doc' && !(doc.mimeType.includes('word') || doc.mimeType.includes('msword') || doc.mimeType.includes('text'))) return false;
+      if (fileTypeFilter === 'spreadsheet' && !(doc.mimeType.includes('csv') || doc.mimeType.includes('excel') || doc.mimeType.includes('spreadsheet'))) return false;
+    }
+    // Date Range (simple days back)
+    if (dateRangeFilter) {
+      const daysBack = parseInt(dateRangeFilter, 10);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - daysBack);
+      if (new Date(doc.createdAt) < cutoff) return false;
+    }
+    return true;
+  });
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) onUpload(e.target.files);
   };
@@ -137,6 +176,62 @@ const DocsView: React.FC<DocsViewProps> = ({
         </div>
       </header>
 
+      {/* Filters and Search Bar */}
+      <div className="bg-white p-4 rounded-xl border border-[#E5E5EA] shadow-sm flex flex-col md:flex-row items-center gap-4">
+        <div className="relative flex-1 w-full">
+          <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-[#86868B]"></i>
+          <input 
+            type="text" 
+            placeholder="Search manifests, sender, recipient..." 
+            className="w-full bg-[#F5F5F7] border border-[#E5E5EA] rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#007AFF]/20 transition-all"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <select 
+            value={ocrStatusFilter} 
+            onChange={(e) => setOcrStatusFilter(e.target.value)}
+            className="bg-[#F5F5F7] border border-[#E5E5EA] rounded-lg px-3 py-2 text-xs font-semibold text-[#1D1D1F] focus:outline-none"
+          >
+            <option value="">All OCR</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+          </select>
+          <select 
+            value={protectedFilter} 
+            onChange={(e) => setProtectedFilter(e.target.value)}
+            className="bg-[#F5F5F7] border border-[#E5E5EA] rounded-lg px-3 py-2 text-xs font-semibold text-[#1D1D1F] focus:outline-none"
+          >
+            <option value="">Hold: All</option>
+            <option value="true">Held Only</option>
+            <option value="false">Not Held</option>
+          </select>
+          <select 
+            value={fileTypeFilter} 
+            onChange={(e) => setFileTypeFilter(e.target.value)}
+            className="bg-[#F5F5F7] border border-[#E5E5EA] rounded-lg px-3 py-2 text-xs font-semibold text-[#1D1D1F] focus:outline-none"
+          >
+            <option value="">All Types</option>
+            <option value="pdf">PDF</option>
+            <option value="image">Image</option>
+            <option value="doc">Document</option>
+            <option value="spreadsheet">Spreadsheet</option>
+          </select>
+          <select 
+            value={dateRangeFilter} 
+            onChange={(e) => setDateRangeFilter(e.target.value)}
+            className="bg-[#F5F5F7] border border-[#E5E5EA] rounded-lg px-3 py-2 text-xs font-semibold text-[#1D1D1F] focus:outline-none"
+          >
+            <option value="">Any Date</option>
+            <option value="1">Past 24 Hours</option>
+            <option value="7">Past 7 Days</option>
+            <option value="30">Past 30 Days</option>
+          </select>
+        </div>
+      </div>
+
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
         <div className="bg-white text-[#1D1D1F] p-3 md:p-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm border border-[#E5E5EA] animate-in fade-in slide-in-from-top-2 duration-300">
@@ -224,22 +319,23 @@ const DocsView: React.FC<DocsViewProps> = ({
                 <th className="px-4 md:px-6 py-4 w-12 text-center">
                   <input 
                     type="checkbox" 
-                    checked={selectedIds.size === documents.length && documents.length > 0}
+                    checked={selectedIds.size === filteredDocuments.length && filteredDocuments.length > 0}
                     onChange={toggleSelectAll}
                     className="w-4 h-4 rounded border-[#C7C7CC] text-[#007AFF] focus:ring-[#007AFF]/20 transition-all"
                   />
                 </th>
                 <th className="px-4 md:px-6 py-4 font-semibold text-[#86868B] uppercase tracking-wider">Logistics Asset</th>
+                <th className="px-4 md:px-6 py-4 font-semibold text-[#86868B] uppercase tracking-wider">AI Intelligence extraction</th>
                 <th className="px-4 md:px-6 py-4 font-semibold text-[#86868B] uppercase tracking-wider text-center">Cycle Status</th>
-                <th className="px-4 md:px-6 py-4 font-semibold text-[#86868B] uppercase tracking-wider text-center">OCR Engine</th>
+                <th className="px-4 md:px-6 py-4 font-semibold text-[#86868B] uppercase tracking-wider text-center w-40">OCR Engine</th>
                 <th className="px-4 md:px-6 py-4 font-semibold text-[#86868B] uppercase tracking-wider">Registry Date</th>
                 <th className="px-4 md:px-6 py-4 font-semibold text-[#86868B] uppercase tracking-wider text-right">Ops</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E5EA] text-sm text-[#1D1D1F]">
-              {documents.length === 0 ? (
+              {filteredDocuments.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-24 text-center">
+                  <td colSpan={7} className="px-6 py-24 text-center">
                     <div className="max-w-xs mx-auto opacity-50 grayscale">
                        <i className="fa-solid fa-box-open text-5xl mb-4 block text-[#86868B]"></i>
                        <p className="font-semibold text-[#1D1D1F] tracking-wide text-xs">Repository Exhausted</p>
@@ -248,7 +344,7 @@ const DocsView: React.FC<DocsViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                documents.map((doc) => (
+                filteredDocuments.map((doc) => (
                   <tr 
                     key={doc.id} 
                     className={`hover:bg-[#F5F5F7] transition-all group cursor-pointer ${selectedIds.has(doc.id) ? 'bg-[#007AFF]/5' : ''}`}
@@ -285,6 +381,16 @@ const DocsView: React.FC<DocsViewProps> = ({
                         </div>
                       </div>
                     </td>
+                    <td className="px-4 md:px-6 py-4">
+                      {doc.metadata ? (
+                        <div className="text-[10px] md:text-xs">
+                          <p><strong className="text-[#86868B] uppercase tracking-wider">From:</strong> {doc.metadata.sender || 'Unknown'}</p>
+                          <p><strong className="text-[#86868B] uppercase tracking-wider">To:</strong> {doc.metadata.recipient || 'Unknown'}</p>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-[#C7C7CC] italic">No extraction data</span>
+                      )}
+                    </td>
                     <td className="px-4 md:px-6 py-4 text-center">
                       <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-semibold tracking-wide border ${
                         doc.status === 'ready' ? 'bg-[#34C759]/10 text-[#34C759] border-[#34C759]/20' : 
@@ -295,29 +401,42 @@ const DocsView: React.FC<DocsViewProps> = ({
                         {doc.status.toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-4 md:px-6 py-4 text-center relative group/tooltip">
-                      <div className="flex items-center justify-center gap-2">
-                        {doc.ocrStatus === 'pending' ? (
-                          <i className="fa-solid fa-circle-notch fa-spin text-[#007AFF] text-[10px]"></i>
-                        ) : (
-                          <div className={`w-2 h-2 rounded-full ${
-                            doc.ocrStatus === 'completed' ? 'bg-[#34C759]' :
-                            doc.ocrStatus === 'failed' ? 'bg-[#FF3B30]' : 'bg-[#C7C7CC]'
-                          }`}></div>
+                    <td className="px-4 md:px-6 py-4 text-center relative group/tooltip w-40">
+                      <div className="flex flex-col items-center justify-center gap-1 w-full">
+                        <div className="flex items-center justify-center gap-2">
+                          {doc.ocrStatus === 'pending' ? (
+                            <i className="fa-solid fa-circle-notch fa-spin text-[#007AFF] text-[10px]"></i>
+                          ) : (
+                            <div className={`w-2 h-2 rounded-full ${
+                              doc.ocrStatus === 'completed' ? 'bg-[#34C759]' :
+                              doc.ocrStatus === 'failed' ? 'bg-[#FF3B30]' : 'bg-[#C7C7CC]'
+                            }`}></div>
+                          )}
+                          <span className={`text-[10px] md:text-xs font-semibold tracking-wide ${
+                            doc.ocrStatus === 'failed' ? 'text-[#FF3B30] underline decoration-dotted decoration-[#FF3B30]/50 cursor-help' : 'text-[#515154]'
+                          }`}>
+                            {doc.ocrStatus.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                        {doc.ocrStatus === 'pending' && doc.ocrProgress !== undefined && (
+                          <div className="w-full h-1 bg-[#E5E5EA] rounded-full overflow-hidden mt-1">
+                            <div className="h-full bg-[#007AFF] transition-all duration-300" style={{width: `${doc.ocrProgress}%`}}></div>
+                          </div>
                         )}
-                        <span className={`text-[10px] md:text-xs font-semibold tracking-wide ${
-                          doc.ocrStatus === 'failed' ? 'text-[#FF3B30] underline decoration-dotted decoration-[#FF3B30]/50 cursor-help' : 'text-[#515154]'
-                        }`}>
-                          {doc.ocrStatus.replace('_', ' ').toUpperCase()}
-                        </span>
                       </div>
                       
-                      {doc.ocrStatus === 'failed' && doc.text && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 md:w-64 p-3 bg-black/90 backdrop-blur text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none before:content-[''] before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-t-black/90 text-left font-medium leading-relaxed">
-                          <span className="flex items-start gap-2">
-                            <i className="fa-solid fa-triangle-exclamation text-[#FF3B30] mt-0.5"></i>
-                            <span className="break-words whitespace-normal">{doc.text}</span>
-                          </span>
+                      {doc.ocrStatus === 'failed' && (doc.ocrErrorMessage || doc.text) && (
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 md:w-64 p-3 bg-white text-[#1D1D1F] border border-[#FF3B30]/30 rounded-xl shadow-xl shadow-[#FF3B30]/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none before:content-[''] before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-t-white text-left font-medium leading-relaxed">
+                          <div className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-[#FF3B30]/10 flex flex-shrink-0 items-center justify-center text-[#FF3B30]">
+                               <i className="fa-solid fa-triangle-exclamation text-[10px]"></i>
+                            </div>
+                            <div className="flex-1">
+                               <p className="text-[10px] font-bold text-[#FF3B30] uppercase tracking-wider mb-1">OCR Engine Fault</p>
+                               <span className="text-xs break-words whitespace-normal text-slate-600 block">{doc.ocrErrorMessage || doc.text}</span>
+                               <a href="/audit" className="text-[10px] font-bold text-[#007AFF] mt-2 inline-block hover:underline cursor-pointer pointer-events-auto">View Audit Trace &rarr;</a>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </td>
@@ -387,8 +506,8 @@ const DocsView: React.FC<DocsViewProps> = ({
               </button>
             </div>
             
-            <div className="flex-1 overflow-auto p-4 md:p-6 bg-[#F5F5F7]">
-              <div className="bg-white border border-[#E5E5EA] rounded-xl shadow-sm overflow-hidden min-h-[50vh]">
+            <div className="flex-1 overflow-auto p-4 md:p-6 bg-[#F5F5F7] flex flex-col md:flex-row gap-6">
+              <div className="bg-white border border-[#E5E5EA] rounded-xl shadow-sm overflow-hidden flex-1 min-h-[50vh]">
                 {previewDoc.mimeType.startsWith('image/') ? (
                   <div className="flex items-center justify-center p-6 min-h-[50vh] bg-[#F5F5F7]/50">
                     <img 
@@ -397,7 +516,7 @@ const DocsView: React.FC<DocsViewProps> = ({
                       className="max-w-full max-h-[60vh] object-contain rounded-lg border border-[#E5E5EA] shadow-sm"
                     />
                   </div>
-                ) : previewDoc.text ? (
+                ) : previewDoc.text && previewDoc.ocrStatus === 'completed' ? (
                   <div className="p-6 md:p-10 text-sm md:text-base leading-relaxed text-[#1D1D1F] whitespace-pre-wrap font-sans">
                     {previewDoc.text}
                   </div>
@@ -421,6 +540,33 @@ const DocsView: React.FC<DocsViewProps> = ({
                   </div>
                 )}
               </div>
+              
+              {previewDoc.metadata && (
+                <div className="w-full md:w-80 bg-white border border-[#E5E5EA] rounded-xl shadow-sm p-5 space-y-4 flex-shrink-0">
+                  <div className="flex items-center gap-2 text-[#007AFF] border-b border-[#E5E5EA] pb-3">
+                    <i className="fa-solid fa-microchip"></i>
+                    <h3 className="font-bold text-sm tracking-wide uppercase">AI Intelligence</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#86868B] mb-1">Sender</p>
+                       <p className="text-sm font-semibold text-[#1D1D1F]">{previewDoc.metadata.sender}</p>
+                    </div>
+                    <div>
+                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#86868B] mb-1">Recipient</p>
+                       <p className="text-sm font-semibold text-[#1D1D1F]">{previewDoc.metadata.recipient}</p>
+                    </div>
+                    <div>
+                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#86868B] mb-1">Document Date</p>
+                       <p className="text-sm font-medium text-[#1D1D1F]">{previewDoc.metadata.documentDate}</p>
+                    </div>
+                    <div>
+                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#86868B] mb-1">Executive Summary</p>
+                       <p className="text-xs text-[#515154] leading-relaxed p-3 bg-[#F5F5F7] rounded-lg border border-[#E5E5EA]">{previewDoc.metadata.summary}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="p-4 border-t border-[#E5E5EA] bg-white flex justify-between items-center text-xs text-[#86868B] font-medium">

@@ -104,6 +104,7 @@ const App: React.FC = () => {
             sourceType: 'upload',
             status: 'processing',
             ocrStatus: 'pending',
+            ocrProgress: 0,
             createdAt: new Date().toISOString(),
             mimeType: f.type || 'application/octet-stream',
             bytes: f.size,
@@ -121,17 +122,34 @@ const App: React.FC = () => {
     setDocs(prev => [...prev, ...newDocs]);
     addAuditLog('INGEST_INIT', 'GOV_DOC_BATCH', undefined, { count: newDocs.length, filenames: newDocs.map(d => d.title) });
 
-    // Simulate async processing
-    setTimeout(() => {
-      setDocs(prev => prev.map(d => 
-        newDocs.some(nd => nd.id === d.id) ? { 
-          ...d, 
-          status: 'ready', 
-          ocrStatus: 'completed',
-          text: `Administrative analysis completed for ${d.title}. Intelligence patterns extracted and indexed for retrieval.` 
-        } : d
-      ));
-    }, 3000);
+    // Simulate async processing with progress and AI metadata extraction
+    const docIds = newDocs.map(d => d.id);
+    let iter = 0;
+    const interval = setInterval(() => {
+      iter++;
+      if (iter >= 4) {
+        clearInterval(interval);
+        setDocs(prev => prev.map(d => 
+          docIds.includes(d.id) ? { 
+            ...d, 
+            status: 'ready', 
+            ocrStatus: 'completed',
+            ocrProgress: 100,
+            metadata: {
+              sender: "EU Customs Authority",
+              recipient: "DKM Node Antwerp",
+              documentDate: new Date().toISOString().split('T')[0],
+              summary: "Verified import manifest containing certified electronics cargo details."
+            },
+            text: `Administrative analysis completed for ${d.title}. Intelligence patterns extracted and indexed for retrieval.` 
+          } : d
+        ));
+      } else {
+        setDocs(prev => prev.map(d => 
+          docIds.includes(d.id) ? { ...d, ocrProgress: iter * 25 } : d
+        ));
+      }
+    }, 800);
   };
 
   /**
@@ -140,28 +158,39 @@ const App: React.FC = () => {
   const handleTriggerOCR = (ids: string[]) => {
     // Set immediate processing state
     setDocs(prev => prev.map(d => 
-      ids.includes(d.id) ? { ...d, status: 'processing', ocrStatus: 'pending' } : d
+      ids.includes(d.id) ? { ...d, status: 'processing', ocrStatus: 'pending', ocrProgress: 0, ocrErrorMessage: undefined } : d
     ));
     addAuditLog('MANUAL_OCR_TRIGGER', 'DOCUMENT_BATCH', undefined, { count: ids.length, documentIds: ids });
 
-    // Simulate OCR finish with failure/success probability
-    setTimeout(() => {
-      setDocs(prev => prev.map(d => {
-        if (!ids.includes(d.id)) return d;
+    let iter = 0;
+    const interval = setInterval(() => {
+      iter++;
+      if(iter >= 4) {
+        clearInterval(interval);
+        // Simulate OCR finish with failure/success probability
+        setDocs(prev => prev.map(d => {
+          if (!ids.includes(d.id)) return d;
 
-        // 10% failure rate for demo realism
-        const isSuccess = Math.random() > 0.1;
-        
-        return { 
-          ...d, 
-          status: isSuccess ? 'ready' : 'error', 
-          ocrStatus: isSuccess ? 'completed' : 'failed', 
-          text: isSuccess 
-            ? `On-demand administrative verification completed for ${d.title}. Internal audit trace: ${Math.random().toString(36).substring(2, 9).toUpperCase()}. Infrastructure node: ${serverMode.toUpperCase()}`
-            : `System Error: OCR engine failure during document flattening. Fault code: 0x${Math.floor(Math.random() * 16777215).toString(16).toUpperCase()}.`
-        };
-      }));
-    }, 2500);
+          // 10% failure rate for demo realism
+          const isSuccess = Math.random() > 0.1;
+          
+          return { 
+            ...d, 
+            status: isSuccess ? 'ready' : 'error', 
+            ocrStatus: isSuccess ? 'completed' : 'failed', 
+            ocrProgress: isSuccess ? 100 : undefined,
+            ocrErrorMessage: isSuccess ? undefined : `System Error: OCR engine failure during document flattening. Fault code: 0x${Math.floor(Math.random() * 16777215).toString(16).toUpperCase()}.`,
+            text: isSuccess 
+              ? `On-demand administrative verification completed for ${d.title}. Internal audit trace: ${Math.random().toString(36).substring(2, 9).toUpperCase()}. Infrastructure node: ${serverMode.toUpperCase()}`
+              : `System Error: OCR engine failure during document flattening. Fault code: 0x${Math.floor(Math.random() * 16777215).toString(16).toUpperCase()}.`
+          };
+        }));
+      } else {
+        setDocs(prev => prev.map(d => 
+          ids.includes(d.id) ? { ...d, ocrProgress: iter * 25 } : d
+        ));
+      }
+    }, 600);
   };
 
   const handleDelete = (id: string) => {

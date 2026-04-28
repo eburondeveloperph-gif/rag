@@ -17,12 +17,21 @@ export interface Document {
   sourceType: SourceType;
   status: DocStatus;
   ocrStatus: OCRStatus; // Added OCR specific status field
+  ocrProgress?: number; // Added progress
+  ocrErrorMessage?: string; // Added error message
   createdAt: string;
   mimeType: string;
   bytes: number;
   text?: string; // Extracted OCR text
   protected?: boolean; // New: Legal hold / Protected status
   fileData?: string; // Stored file data base64 (since IndexedDB is powerful)
+  // AI Extracted Metadata
+  metadata?: {
+    sender?: string;
+    recipient?: string;
+    documentDate?: string;
+    summary?: string;
+  };
 }
 
 export interface Chunk {
