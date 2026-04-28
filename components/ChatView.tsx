@@ -230,6 +230,17 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
       {/* Input */}
       <div className="p-3 md:p-4 bg-white/80 backdrop-blur border-t border-[#E5E5EA]">
         <div className="max-w-4xl mx-auto flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-1 shrink-0">
+            <button className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF] transition-colors" title="Realtime Video">
+              <i className="fa-solid fa-video text-sm"></i>
+            </button>
+            <button className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF] transition-colors" title="Attach file or image">
+              <i className="fa-solid fa-paperclip text-sm"></i>
+            </button>
+            <button className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF] transition-colors" title="YOLO26 Realtime Vision Scanner">
+              <i className="fa-solid fa-expand text-sm"></i>
+            </button>
+          </div>
           <div className="relative flex-1">
             <input 
               type="text" 
