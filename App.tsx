@@ -7,6 +7,8 @@ import ChatView from './components/ChatView';
 import PurgeView from './components/PurgeView';
 import { Document, AuditLog } from './types';
 import { MOCK_DOCS, CURRENT_WORKSPACE_ID, CURRENT_USER_ID } from './constants';
+import { auth, signInWithGoogle, logout, syncAuditLogToFirebase, getFirebaseAuditLogs } from './services/firebaseService';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('docs');
@@ -15,6 +17,14 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [serverMode, setServerMode] = useState<'cloud' | 'local'>('cloud');
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Persistence Layer: Load from IndexedDB on mount
   useEffect(() => {
@@ -27,7 +37,15 @@ const App: React.FC = () => {
         if (savedDocs) setDocs(savedDocs);
         else setDocs(MOCK_DOCS);
 
-        if (savedLogs) setAuditLogs(savedLogs);
+        const fbLogs = await getFirebaseAuditLogs();
+        if (savedLogs || fbLogs.length > 0) {
+          // Merge avoiding duplicates based on log id
+          const mergedLogsMap = new Map<string, AuditLog>();
+          if (savedLogs) savedLogs.forEach((l: any) => mergedLogsMap.set(l.id, l));
+          fbLogs.forEach((l: any) => mergedLogsMap.set(l.id, l));
+          setAuditLogs(Array.from(mergedLogsMap.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        }
+
         if (savedServer) setServerMode(savedServer as 'cloud' | 'local');
       } catch (error) {
         console.error("Failed to load data from IndexedDB", error);
@@ -62,7 +80,7 @@ const App: React.FC = () => {
     const log: AuditLog = {
       id: `LOG-BE-${Date.now()}`,
       workspaceId: CURRENT_WORKSPACE_ID,
-      actorId: CURRENT_USER_ID,
+      actorId: user?.uid || CURRENT_USER_ID,
       action,
       targetType,
       targetId,
@@ -70,7 +88,9 @@ const App: React.FC = () => {
       createdAt: new Date().toISOString()
     };
     setAuditLogs(prev => [log, ...prev]);
+    syncAuditLogToFirebase(log);
   };
+
 
   const handleUpload = async (files: FileList) => {
     const filePromises = Array.from(files).map((f, i) => {
@@ -198,6 +218,27 @@ const App: React.FC = () => {
   };
 
   if (!isLoaded) return null;
+
+  if (!user) {
+    return (
+      <div className="flex bg-[#F5F5F7] min-h-screen font-sans flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl w-full max-w-md text-center border border-[#E5E5EA]">
+          <div className="w-20 h-20 bg-[#007AFF]/10 text-[#007AFF] rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <i className="fa-solid fa-shield-halved text-4xl"></i>
+          </div>
+          <h1 className="text-2xl font-semibold text-[#1D1D1F] mb-2 tracking-tight">Eburon Authentication</h1>
+          <p className="text-[#86868B] text-sm mb-8">Secure login required to access governmental documents and audit logs.</p>
+          <button
+            onClick={signInWithGoogle}
+            className="w-full relative flex items-center justify-center gap-3 bg-white border border-[#E5E5EA] text-[#1D1D1F] px-6 py-3.5 rounded-xl font-semibold transition-all hover:-translate-y-0.5 hover:shadow-md active:bg-[#F5F5F7]"
+          >
+            <i className="fa-brands fa-google text-[#007AFF] text-lg"></i>
+            Continue with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const localInstallScript = `#!/bin/bash
 # Eburon RAG Local Infrastructure Setup
