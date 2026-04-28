@@ -217,7 +217,16 @@ const App: React.FC = () => {
     alert(`Administrative Purge Complete: ${toDelete.length} records erased. ${skippedProtected} protected records retained for compliance.`);
   };
 
-  if (!isLoaded) return null;
+  if (!isLoaded) {
+    return (
+      <div className="flex bg-[#F5F5F7] min-h-screen items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 text-[#86868B]">
+          <div className="w-10 h-10 border-4 border-[#007AFF] border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-semibold text-sm">Loading Eburon Environment...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

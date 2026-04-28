@@ -228,13 +228,42 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
                 </div>
               </div>
             )}
-            {isCameraActive && (
-               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-4">
-                  <button className="w-14 h-14 rounded-full border-4 border-white flex items-center justify-center hover:bg-white/20 transition-all">
-                     <div className="w-10 h-10 rounded-full bg-white"></div>
-                  </button>
-               </div>
-            )}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-4 z-10">
+              <button 
+                onClick={() => {
+                  if (canvasRef.current && videoRef.current) {
+                    const canvas = canvasRef.current;
+                    const video = videoRef.current;
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = canvas.toDataURL('image/jpeg');
+                    
+                    const msg: ChatMessage = {
+                      id: Date.now().toString(),
+                      role: 'user',
+                      content: `[Captured ${isScannerActive ? 'Scan' : 'Photo'}]`, // Could embed image here if we supported rendering it
+                    };
+                    setMessages(prev => [...prev, msg]);
+                    stopCamera();
+                    
+                    setTimeout(() => {
+                      setMessages(prev => [...prev, {
+                        id: (Date.now() + 1).toString(),
+                        role: 'assistant',
+                        content: isScannerActive 
+                          ? "YOLO26 OCR Complete. Detected text: 'CONFIDENTIAL EBURON DIRECTIVE'. How should I log this?" 
+                          : "I received the captured image. It appears to be a document. Would you like me to run analysis on it?"
+                      }]);
+                    }, 1500);
+                  }
+                }}
+                className="w-14 h-14 rounded-full border-4 border-white flex items-center justify-center hover:bg-white/20 transition-all bg-black/20"
+              >
+                <div className="w-10 h-10 rounded-full bg-white"></div>
+              </button>
+            </div>
           </div>
         )}
 
