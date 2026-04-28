@@ -21,6 +21,7 @@ const DocsView: React.FC<DocsViewProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) onUpload(e.target.files);
@@ -248,8 +249,12 @@ const DocsView: React.FC<DocsViewProps> = ({
                 </tr>
               ) : (
                 documents.map((doc) => (
-                  <tr key={doc.id} className={`hover:bg-[#F5F5F7] transition-all group ${selectedIds.has(doc.id) ? 'bg-[#007AFF]/5' : ''}`}>
-                    <td className="px-4 md:px-6 py-4 text-center">
+                  <tr 
+                    key={doc.id} 
+                    className={`hover:bg-[#F5F5F7] transition-all group cursor-pointer ${selectedIds.has(doc.id) ? 'bg-[#007AFF]/5' : ''}`}
+                    onClick={() => setPreviewDoc(doc)}
+                  >
+                    <td className="px-4 md:px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <input 
                         type="checkbox" 
                         checked={selectedIds.has(doc.id)}
@@ -321,7 +326,7 @@ const DocsView: React.FC<DocsViewProps> = ({
                           {new Date(doc.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                        </div>
                     </td>
-                    <td className="px-4 md:px-6 py-4 text-right">
+                    <td className="px-4 md:px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all transform md:group-hover:translate-x-0 md:translate-x-2">
                         {doc.fileData && (
                           <a 
@@ -352,6 +357,91 @@ const DocsView: React.FC<DocsViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPreviewDoc(null)}></div>
+          <div className="bg-white rounded-2xl shadow-2xl relative z-10 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-4 md:p-6 border-b border-[#E5E5EA] flex justify-between items-center bg-[#F5F5F7]">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white border border-[#E5E5EA] flex items-center justify-center shadow-sm">
+                  <i className={`fa-solid ${getFileIcon(previewDoc.mimeType)} text-[#86868B] text-lg`}></i>
+                </div>
+                <div>
+                  <h2 className="font-semibold text-[#1D1D1F] text-lg truncate max-w-sm md:max-w-xl">{previewDoc.title}</h2>
+                  <div className="flex items-center gap-2 text-xs text-[#86868B] mt-0.5 font-medium">
+                    <span>{new Date(previewDoc.createdAt).toLocaleString()}</span>
+                    <span className="w-1 h-1 bg-[#C7C7CC] rounded-full"></span>
+                    <span>{(previewDoc.bytes / 1024).toFixed(0)} KB</span>
+                    <span className="w-1 h-1 bg-[#C7C7CC] rounded-full"></span>
+                    <span className="uppercase">{previewDoc.sourceType}</span>
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPreviewDoc(null)}
+                className="w-10 h-10 rounded-full bg-white border border-[#E5E5EA] text-[#86868B] hover:text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors flex items-center justify-center shadow-sm"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-4 md:p-6 bg-[#F5F5F7]">
+              <div className="bg-white border border-[#E5E5EA] rounded-xl shadow-sm overflow-hidden min-h-[50vh]">
+                {previewDoc.mimeType.startsWith('image/') ? (
+                  <div className="flex items-center justify-center p-6 min-h-[50vh] bg-[#F5F5F7]/50">
+                    <img 
+                      src={previewDoc.fileData} 
+                      alt={previewDoc.title} 
+                      className="max-w-full max-h-[60vh] object-contain rounded-lg border border-[#E5E5EA] shadow-sm"
+                    />
+                  </div>
+                ) : previewDoc.text ? (
+                  <div className="p-6 md:p-10 text-sm md:text-base leading-relaxed text-[#1D1D1F] whitespace-pre-wrap font-sans">
+                    {previewDoc.text}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full min-h-[50vh] text-center p-6">
+                    <i className="fa-solid fa-file-invoice text-6xl text-[#E5E5EA] mb-4"></i>
+                    <h3 className="text-lg font-semibold text-[#1D1D1F] mb-2">No preview available</h3>
+                    <p className="text-[#86868B] text-sm max-w-sm">
+                      This file format cannot be previewed directly, or the text extraction has not completed yet.
+                    </p>
+                    {previewDoc.fileData && (
+                      <a 
+                        href={previewDoc.fileData} 
+                        download={previewDoc.title}
+                        className="mt-6 bg-[#007AFF] hover:bg-[#007AFF]/90 text-white px-5 py-2.5 rounded-lg font-semibold transition-all flex items-center gap-2 shadow-sm"
+                      >
+                        <i className="fa-solid fa-download"></i>
+                        Download File
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-[#E5E5EA] bg-white flex justify-between items-center text-xs text-[#86868B] font-medium">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-[#1D1D1F]">ID:</span> <span className="font-mono text-[10px] bg-[#F5F5F7] px-2 py-0.5 rounded text-[#515154] border border-[#E5E5EA]">{previewDoc.id}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-[#1D1D1F]">OCR Status:</span> 
+                <span className={`px-2 py-0.5 rounded font-semibold uppercase tracking-wide border ${
+                  previewDoc.ocrStatus === 'completed' ? 'bg-[#34C759]/10 text-[#34C759] border-[#34C759]/20' : 
+                  previewDoc.ocrStatus === 'pending' ? 'bg-[#007AFF]/10 text-[#007AFF] border-[#007AFF]/20' : 
+                  previewDoc.ocrStatus === 'failed' ? 'bg-[#FF3B30]/10 text-[#FF3B30] border-[#FF3B30]/20' :
+                  'bg-[#F5F5F7] text-[#86868B] border-[#E5E5EA]'
+                }`}>
+                  {previewDoc.ocrStatus}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

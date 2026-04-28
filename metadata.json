@@ -3,7 +3,8 @@
   "description": "Secure document governance platform for EU Belgian government entities. Specialized in GDPR/RGPD compliance, OCR of official paperwork, and automated data lifecycle management.",
   "requestFramePermissions": [
     "camera",
-    "microphone"
+    "microphone",
+    "geolocation"
   ],
   "majorCapabilities": []
 }

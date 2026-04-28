@@ -135,6 +135,58 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
     }
   };
 
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isScannerActive, setIsScannerActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const startCamera = async (mode: 'video' | 'scanner') => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      if (mode === 'video') {
+        setIsCameraActive(true);
+      } else {
+        setIsScannerActive(true);
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      alert("Requires camera permission and HTTPS.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+    setIsScannerActive(false);
+  };
+
+  const handleAttachFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const msg: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: `[Attached Document: ${file.name}]`,
+      };
+      setMessages(prev => [...prev, msg]);
+      setTimeout(() => {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `I've received the file "${file.name}". How can I help you analyze it?`
+        }]);
+      }, 1000);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen bg-white">
       {/* Header */}
@@ -153,7 +205,40 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 scroll-smooth">
-        {messages.length === 0 && (
+        {(isCameraActive || isScannerActive) && (
+          <div className="relative mb-6 rounded-xl overflow-hidden border border-[#E5E5EA] shadow-sm max-w-2xl mx-auto">
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto bg-black" />
+            <canvas ref={canvasRef} className="hidden" />
+            <div className="absolute top-4 right-4 flex gap-2">
+              <button onClick={stopCamera} className="w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 backdrop-blur-sm">
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            {isScannerActive && (
+              <div className="absolute inset-0 border-4 border-[#34C759] m-8 rounded-lg opacity-50 relative pointer-events-none">
+                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-[#34C759] -mt-1 -ml-1"></div>
+                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-[#34C759] -mt-1 -mr-1"></div>
+                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-[#34C759] -mb-1 -ml-1"></div>
+                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-[#34C759] -mb-1 -mr-1"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                   <div className="bg-black/60 text-[#34C759] px-3 py-1 rounded backdrop-blur text-xs font-mono font-bold tracking-widest uppercase flex items-center gap-2">
+                     <span className="w-2 h-2 rounded-full bg-[#34C759] animate-pulse"></span>
+                     YOLO26 Scan Active
+                   </div>
+                </div>
+              </div>
+            )}
+            {isCameraActive && (
+               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-4">
+                  <button className="w-14 h-14 rounded-full border-4 border-white flex items-center justify-center hover:bg-white/20 transition-all">
+                     <div className="w-10 h-10 rounded-full bg-white"></div>
+                  </button>
+               </div>
+            )}
+          </div>
+        )}
+
+        {messages.length === 0 && !isCameraActive && !isScannerActive && (
           <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto px-4">
             <div className="w-16 h-16 md:w-20 md:h-20 bg-[#007AFF]/10 rounded-[1.25rem] flex items-center justify-center mb-6">
               <i className="fa-solid fa-brain text-[#007AFF] text-2xl md:text-3xl"></i>
@@ -231,13 +316,32 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
       <div className="p-3 md:p-4 bg-white/80 backdrop-blur border-t border-[#E5E5EA]">
         <div className="max-w-4xl mx-auto flex items-center gap-2 md:gap-3">
           <div className="flex items-center gap-1 shrink-0">
-            <button className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF] transition-colors" title="Realtime Video">
+            <button 
+              onClick={() => isCameraActive ? stopCamera() : startCamera('video')}
+              className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-colors ${isCameraActive ? 'bg-[#007AFF] text-white' : 'text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF]'}`} 
+              title="Realtime Video"
+            >
               <i className="fa-solid fa-video text-sm"></i>
             </button>
-            <button className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF] transition-colors" title="Attach file or image">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF] transition-colors" 
+              title="Attach file or image"
+            >
               <i className="fa-solid fa-paperclip text-sm"></i>
             </button>
-            <button className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF] transition-colors" title="YOLO26 Realtime Vision Scanner">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleAttachFile} 
+              className="hidden" 
+              accept="image/*,.pdf,.doc,.docx"
+            />
+            <button 
+              onClick={() => isScannerActive ? stopCamera() : startCamera('scanner')}
+              className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-colors ${isScannerActive ? 'bg-[#34C759] text-white' : 'text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#007AFF]'}`} 
+              title="YOLO26 Realtime Vision Scanner"
+            >
               <i className="fa-solid fa-expand text-sm"></i>
             </button>
           </div>
