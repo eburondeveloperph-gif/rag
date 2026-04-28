@@ -278,21 +278,6 @@ const App: React.FC = () => {
     );
   }
 
-  const localInstallScript = `#!/bin/bash
-# Eburon RAG Local Infrastructure Setup
-echo "Initializing Eburon Local environment..."
-
-# 1. Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# 2. Pull Eburon RAG OCR Model
-echo "Pulling Eburon-Pro Vision models..."
-ollama pull eburon-pro/vision
-
-# 3. Start Local Inference Engine
-echo "Starting Eburon Vision..."
-ollama run eburon-pro/vision`;
-
   return (
     <div className="flex bg-[#F5F5F7] min-h-screen font-sans overflow-x-hidden text-[#1D1D1F] selection:bg-[#007AFF]/20 selection:text-[#007AFF]">
       <button 
@@ -425,41 +410,6 @@ ollama run eburon-pro/vision`;
                       <p className="text-[11px] text-slate-500 leading-relaxed mt-2 font-medium">Air-gapped on-premise infrastructure. No external traffic footprint.</p>
                     </button>
                   </div>
-
-                  {serverMode === 'local' && (
-                    <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                      <div className="bg-slate-900 rounded-3xl p-8 relative overflow-hidden group">
-                        <div className="relative z-10">
-                          <div className="flex items-center gap-3 mb-6">
-                            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-900 shadow-lg shadow-emerald-500/20">
-                              <i className="fa-solid fa-terminal text-xs"></i>
-                            </div>
-                            <h4 className="text-white font-black uppercase text-xs tracking-widest">Local Provisioning Sequence</h4>
-                          </div>
-                          
-                          <p className="text-slate-400 text-xs mb-6 leading-relaxed">
-                            To activate local processing, execute the provisioning script on your secure workstation. This will install the local intelligence layer and pull the necessary Vision models.
-                          </p>
-
-                          <div className="relative">
-                            <pre className="bg-black/50 text-emerald-400 p-6 rounded-2xl font-mono text-[11px] overflow-x-auto leading-relaxed border border-white/5 scrollbar-hide">
-                              {localInstallScript}
-                            </pre>
-                            <button 
-                              onClick={() => {
-                                navigator.clipboard.writeText(localInstallScript);
-                                alert('Compliance script copied to secure clipboard.');
-                              }}
-                              className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-xl text-[10px] uppercase font-black transition-all backdrop-blur-md active:scale-95"
-                            >
-                              Copy Command
-                            </button>
-                          </div>
-                        </div>
-                        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full group-hover:bg-emerald-500/20 transition-all duration-1000"></div>
-                      </div>
-                    </div>
-                  )}
                 </section>
 
                 <section className="bg-white rounded-3xl border border-slate-200 p-6 md:p-10 space-y-8 shadow-xl shadow-slate-200/50">
