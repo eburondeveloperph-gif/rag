@@ -311,7 +311,7 @@ const App: React.FC = () => {
           )}
           
           {activeTab === 'chat' && (
-            <ChatView documents={docs.filter(d => d.status === 'ready')} />
+            <ChatView documents={docs.filter(d => d.status === 'ready')} onUpload={handleUpload} />
           )}
           
           {activeTab === 'purge' && (

@@ -5,6 +5,7 @@ import { aiService } from '../services/aiService';
 
 interface ChatViewProps {
   documents: any[];
+  onUpload?: (files: FileList) => void;
 }
 
 // Helper functions for raw PCM audio decoding from Gemini TTS
@@ -37,7 +38,7 @@ const decodeAudioData = async (
   return buffer;
 };
 
-const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
+const ChatView: React.FC<ChatViewProps> = ({ documents, onUpload }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -171,6 +172,9 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
   const handleAttachFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (onUpload && e.target.files) {
+        onUpload(e.target.files);
+      }
       const msg: ChatMessage = {
         id: Date.now().toString(),
         role: 'user',
@@ -204,31 +208,31 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 scroll-smooth">
-        {(isCameraActive || isScannerActive) && (
-          <div className="relative mb-6 rounded-xl overflow-hidden border border-[#E5E5EA] shadow-sm max-w-2xl mx-auto">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto bg-black" />
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 scroll-smooth relative">
+        {(isCameraActive || isScannerActive) ? (
+          <div className="absolute inset-4 md:inset-6 rounded-3xl overflow-hidden border border-[#E5E5EA] shadow-2xl z-20 bg-black flex flex-col">
+            <video ref={videoRef} autoPlay playsInline muted className="flex-1 w-full h-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             <div className="absolute top-4 right-4 flex gap-2">
-              <button onClick={stopCamera} className="w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 backdrop-blur-sm">
-                <i className="fa-solid fa-xmark"></i>
+              <button onClick={stopCamera} className="w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 backdrop-blur-md transition-all">
+                <i className="fa-solid fa-xmark text-xl"></i>
               </button>
             </div>
             {isScannerActive && (
-              <div className="absolute inset-0 border-4 border-[#34C759] m-8 rounded-lg opacity-50 relative pointer-events-none">
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-[#34C759] -mt-1 -ml-1"></div>
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-[#34C759] -mt-1 -mr-1"></div>
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-[#34C759] -mb-1 -ml-1"></div>
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-[#34C759] -mb-1 -mr-1"></div>
+              <div className="absolute inset-0 border-4 border-[#34C759] m-8 rounded-2xl opacity-80 pointer-events-none">
+                <div className="absolute top-0 left-0 w-12 h-12 border-t-8 border-l-8 border-[#34C759] -mt-2 -ml-2 rounded-tl-lg"></div>
+                <div className="absolute top-0 right-0 w-12 h-12 border-t-8 border-r-8 border-[#34C759] -mt-2 -mr-2 rounded-tr-lg"></div>
+                <div className="absolute bottom-0 left-0 w-12 h-12 border-b-8 border-l-8 border-[#34C759] -mb-2 -ml-2 rounded-bl-lg"></div>
+                <div className="absolute bottom-0 right-0 w-12 h-12 border-b-8 border-r-8 border-[#34C759] -mb-2 -mr-2 rounded-br-lg"></div>
                 <div className="absolute inset-0 flex items-center justify-center">
-                   <div className="bg-black/60 text-[#34C759] px-3 py-1 rounded backdrop-blur text-xs font-mono font-bold tracking-widest uppercase flex items-center gap-2">
-                     <span className="w-2 h-2 rounded-full bg-[#34C759] animate-pulse"></span>
+                   <div className="bg-black/80 text-[#34C759] px-4 py-2 rounded-lg backdrop-blur-md text-sm font-mono font-bold tracking-widest uppercase flex items-center gap-3 shadow-[0_0_15px_rgba(52,199,89,0.5)]">
+                     <span className="w-3 h-3 rounded-full bg-[#34C759] animate-ping"></span>
                      YOLO26 Scan Active
                    </div>
                 </div>
               </div>
             )}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-4 z-10">
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4 z-30">
               <button 
                 onClick={() => {
                   if (canvasRef.current && videoRef.current) {
@@ -238,7 +242,15 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
                     canvas.height = video.videoHeight;
                     const ctx = canvas.getContext('2d');
                     ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imageData = canvas.toDataURL('image/jpeg');
+                    
+                    canvas.toBlob((blob) => {
+                      if (blob && onUpload) {
+                        const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        onUpload(dt.files);
+                      }
+                    }, 'image/jpeg');
                     
                     const msg: ChatMessage = {
                       id: Date.now().toString(),
@@ -259,15 +271,15 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
                     }, 1500);
                   }
                 }}
-                className="w-14 h-14 rounded-full border-4 border-white flex items-center justify-center hover:bg-white/20 transition-all bg-black/20"
+                className="w-20 h-20 rounded-full border-[6px] border-white/80 flex items-center justify-center hover:bg-white/20 transition-all bg-black/40 backdrop-blur-sm"
               >
-                <div className="w-10 h-10 rounded-full bg-white"></div>
+                <div className="w-14 h-14 rounded-full bg-white shadow-lg"></div>
               </button>
             </div>
           </div>
-        )}
-
-        {messages.length === 0 && !isCameraActive && !isScannerActive && (
+        ) : (
+          <>
+            {messages.length === 0 && !isCameraActive && !isScannerActive && (
           <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto px-4">
             <div className="w-16 h-16 md:w-20 md:h-20 bg-[#007AFF]/10 rounded-[1.25rem] flex items-center justify-center mb-6">
               <i className="fa-solid fa-brain text-[#007AFF] text-2xl md:text-3xl"></i>
@@ -338,6 +350,8 @@ const ChatView: React.FC<ChatViewProps> = ({ documents }) => {
               <div className="w-1.5 h-1.5 bg-[#86868B] rounded-full animate-bounce delay-150"></div>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
 
