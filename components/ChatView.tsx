@@ -138,9 +138,67 @@ const ChatView: React.FC<ChatViewProps> = ({ documents, onUpload }) => {
 
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isScannerActive, setIsScannerActive] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordMode, setRecordMode] = useState<'photo' | 'video'>('photo');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef = useRef<BlobPart[]>([]);
+
+  const startRecording = () => {
+    if (!videoRef.current?.srcObject) return;
+    const stream = videoRef.current.srcObject as MediaStream;
+    let mimeType = 'video/webm';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+       mimeType = 'video/mp4';
+    }
+    const recorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorderRef.current = recorder;
+    videoChunksRef.current = [];
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) videoChunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      const blob = new Blob(videoChunksRef.current, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      
+      const file = new File([blob], `video-${Date.now()}.webm`, { type: mimeType });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      if (onUpload) onUpload(dt.files);
+
+      const msg: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: `[Recorded Video attached]`,
+        videoUrl: url,
+      };
+      setMessages(prev => [...prev, msg]);
+      
+      setTimeout(() => {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: "I've received the video recording. What would you like me to analyze?"
+        }]);
+      }, 1500);
+
+      stopCamera();
+    };
+
+    recorder.start();
+    setIsRecording(true);
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   const startCamera = async (mode: 'video' | 'scanner') => {
     try {
@@ -160,6 +218,9 @@ const ChatView: React.FC<ChatViewProps> = ({ documents, onUpload }) => {
   };
 
   const stopCamera = () => {
+    if (isRecording) {
+      stopRecording();
+    }
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
@@ -167,6 +228,7 @@ const ChatView: React.FC<ChatViewProps> = ({ documents, onUpload }) => {
     }
     setIsCameraActive(false);
     setIsScannerActive(false);
+    setRecordMode('photo');
   };
 
   const handleAttachFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -232,49 +294,74 @@ const ChatView: React.FC<ChatViewProps> = ({ documents, onUpload }) => {
                 </div>
               </div>
             )}
+            {isCameraActive && (
+              <div className="absolute bottom-32 left-1/2 -translate-x-1/2 flex bg-black/40 backdrop-blur-md rounded-full p-1 z-30 shadow-lg border border-white/10">
+                <button 
+                  onClick={() => setRecordMode('photo')} 
+                  className={`px-6 py-2 rounded-full text-[10px] uppercase tracking-widest font-bold transition-all ${recordMode === 'photo' ? 'bg-white text-black shadow-sm' : 'text-white hover:text-white/80'}`}
+                >
+                  Photo
+                </button>
+                <button 
+                  onClick={() => setRecordMode('video')} 
+                  className={`px-6 py-2 rounded-full text-[10px] uppercase tracking-widest font-bold transition-all ${recordMode === 'video' ? 'bg-[#FF3B30] text-white shadow-[0_0_15px_rgba(255,59,48,0.5)]' : 'text-white hover:text-white/80'}`}
+                >
+                  Video
+                </button>
+              </div>
+            )}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4 z-30">
-              <button 
-                onClick={() => {
-                  if (canvasRef.current && videoRef.current) {
-                    const canvas = canvasRef.current;
-                    const video = videoRef.current;
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    const ctx = canvas.getContext('2d');
-                    ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    canvas.toBlob((blob) => {
-                      if (blob && onUpload) {
-                        const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                        const dt = new DataTransfer();
-                        dt.items.add(file);
-                        onUpload(dt.files);
-                      }
-                    }, 'image/jpeg');
-                    
-                    const msg: ChatMessage = {
-                      id: Date.now().toString(),
-                      role: 'user',
-                      content: `[Captured ${isScannerActive ? 'Scan' : 'Photo'}]`, // Could embed image here if we supported rendering it
-                    };
-                    setMessages(prev => [...prev, msg]);
-                    stopCamera();
-                    
-                    setTimeout(() => {
-                      setMessages(prev => [...prev, {
-                        id: (Date.now() + 1).toString(),
-                        role: 'assistant',
-                        content: isScannerActive 
-                          ? "YOLO26 OCR Complete. Detected text: 'CONFIDENTIAL EBURON DIRECTIVE'. How should I log this?" 
-                          : "I received the captured image. It appears to be a document. Would you like me to run analysis on it?"
-                      }]);
-                    }, 1500);
-                  }
-                }}
-                className="w-20 h-20 rounded-full border-[6px] border-white/80 flex items-center justify-center hover:bg-white/20 transition-all bg-black/40 backdrop-blur-sm"
-              >
-                <div className="w-14 h-14 rounded-full bg-white shadow-lg"></div>
-              </button>
+              {recordMode === 'video' && isCameraActive ? (
+                <button 
+                  onClick={() => isRecording ? stopRecording() : startRecording()}
+                  className={`w-20 h-20 rounded-full border-[6px] border-white/80 flex items-center justify-center hover:bg-white/20 transition-all bg-black/40 backdrop-blur-sm ${isRecording ? 'border-[#FF3B30] bg-[#FF3B30]/20' : ''}`}
+                >
+                  <div className={`transition-all ${isRecording ? 'w-8 h-8 rounded-lg bg-[#FF3B30]' : 'w-14 h-14 rounded-full bg-[#FF3B30]'}`}></div>
+                </button>
+              ) : (
+                <button 
+                  onClick={() => {
+                    if (canvasRef.current && videoRef.current) {
+                      const canvas = canvasRef.current;
+                      const video = videoRef.current;
+                      canvas.width = video.videoWidth;
+                      canvas.height = video.videoHeight;
+                      const ctx = canvas.getContext('2d');
+                      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+                      
+                      canvas.toBlob((blob) => {
+                        if (blob && onUpload) {
+                          const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                          const dt = new DataTransfer();
+                          dt.items.add(file);
+                          onUpload(dt.files);
+                        }
+                      }, 'image/jpeg');
+                      
+                      const msg: ChatMessage = {
+                        id: Date.now().toString(),
+                        role: 'user',
+                        content: `[Captured ${isScannerActive ? 'Scan' : 'Photo'}]`, // Could embed image here if we supported rendering it
+                      };
+                      setMessages(prev => [...prev, msg]);
+                      stopCamera();
+                      
+                      setTimeout(() => {
+                        setMessages(prev => [...prev, {
+                          id: (Date.now() + 1).toString(),
+                          role: 'assistant',
+                          content: isScannerActive 
+                            ? "YOLO26 OCR Complete. Detected text: 'CONFIDENTIAL EBURON DIRECTIVE'. How should I log this?" 
+                            : "I received the captured image. It appears to be a document. Would you like me to run analysis on it?"
+                        }]);
+                      }, 1500);
+                    }
+                  }}
+                  className="w-20 h-20 rounded-full border-[6px] border-white/80 flex items-center justify-center hover:bg-white/20 transition-all bg-black/40 backdrop-blur-sm"
+                >
+                  <div className="w-14 h-14 rounded-full bg-white shadow-lg"></div>
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -308,7 +395,12 @@ const ChatView: React.FC<ChatViewProps> = ({ documents, onUpload }) => {
                 : 'bg-[#F5F5F7] text-[#1D1D1F] border border-[#E5E5EA]'
             }`}>
               <div className="flex justify-between items-start gap-4">
-                <div className="text-[15px] leading-relaxed whitespace-pre-wrap flex-1">{msg.content}</div>
+                <div className="text-[15px] leading-relaxed whitespace-pre-wrap flex-1">
+                  {msg.videoUrl && (
+                    <video src={msg.videoUrl} controls className="w-full max-w-sm rounded-[1rem] mb-3 shadow-md border border-[#E5E5EA]" />
+                  )}
+                  {msg.content}
+                </div>
                 {msg.role === 'assistant' && (
                   <button 
                     onClick={() => handleSpeak(msg.content, msg.id)}
