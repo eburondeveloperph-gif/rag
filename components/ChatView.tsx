@@ -267,10 +267,22 @@ The video appears to be a short clip captured from a mobile device or webcam. Th
       if (onUpload && e.target.files) {
         onUpload(e.target.files);
       }
+      
+      let imageUrl: string | undefined;
+      let videoUrl: string | undefined;
+      
+      if (file.type.startsWith('image/')) {
+        imageUrl = URL.createObjectURL(file);
+      } else if (file.type.startsWith('video/')) {
+        videoUrl = URL.createObjectURL(file);
+      }
+      
       const msg: ChatMessage = {
         id: Date.now().toString(),
         role: 'user',
         content: `[Attached Document: ${file.name}]`,
+        imageUrl,
+        videoUrl
       };
       setMessages(prev => [...prev, msg]);
       setTimeout(() => {
@@ -367,11 +379,13 @@ The video appears to be a short clip captured from a mobile device or webcam. Th
                           onUpload(dt.files);
                         }
                       }, 'image/jpeg');
+                      const imageUrl = canvas.toDataURL('image/jpeg');
                       
                       const msg: ChatMessage = {
                         id: Date.now().toString(),
                         role: 'user',
                         content: `[Captured ${isScannerActive ? 'Scan' : 'Photo'}]`, // Could embed image here if we supported rendering it
+                        imageUrl,
                       };
                       setMessages(prev => [...prev, msg]);
                       stopCamera();
@@ -426,6 +440,11 @@ The video appears to be a short clip captured from a mobile device or webcam. Th
             }`}>
               <div className="flex justify-between items-start gap-4">
                 <div className="text-[15px] leading-relaxed whitespace-pre-wrap flex-1">
+                  {msg.imageUrl && (
+                    <div className="mb-3">
+                      <img src={msg.imageUrl} alt="Captured" className="w-full max-w-sm rounded-[1rem] shadow-md border border-[#E5E5EA]" />
+                    </div>
+                  )}
                   {msg.videoUrl && (
                     <div className="mb-3">
                       <video src={msg.videoUrl} controls className="w-full max-w-sm rounded-[1rem] mb-2 shadow-md border border-[#E5E5EA]" />
@@ -511,7 +530,7 @@ The video appears to be a short clip captured from a mobile device or webcam. Th
               ref={fileInputRef} 
               onChange={handleAttachFile} 
               className="hidden" 
-              accept="image/*,.pdf,.doc,.docx"
+              accept="image/*,video/*,.pdf,.doc,.docx"
             />
             <button 
               onClick={() => isScannerActive ? stopCamera() : startCamera('scanner')}

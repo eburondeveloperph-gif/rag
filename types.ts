@@ -81,5 +81,6 @@ export interface ChatMessage {
   citations?: Citation[];
   audioUrl?: string;
   videoUrl?: string;
+  imageUrl?: string;
   isStreaming?: boolean;
 }
